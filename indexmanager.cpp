@@ -23,9 +23,9 @@ struct Document
 class Searchengine{
 
     private:
-        std::vector<Document> documents;
-        
-        std::unordered_map<std::string,std::unordered_set<const Document*>> index;
+        std::vector<Document> documents;  
+        std::unordered_map<std::string,std::unordered_map<const Document*,int>> index;
+        std::unordered_map<std::string, int> globalWordCounts;
 
     
     public:
@@ -43,7 +43,8 @@ class Searchengine{
                 word = normalizeWord(word);
                 if (!word.empty())
                 {
-                    index[word].insert(&doc);
+                    index[word][&doc]++;
+                    globalWordCounts[word]++;
                 }
                 
               
@@ -82,7 +83,7 @@ class Searchengine{
 
     };
 
-    std::unordered_set<const Document*> search(const std::string& word) const{
+    std::unordered_map<const Document*,int> search(const std::string& word) const{
         auto lowercase = toLower(word);
         std::stringstream ss(lowercase);
         std::string currentword;
@@ -92,47 +93,71 @@ class Searchengine{
         if (it == index.end())
         {
             std::cout << "NO RESULTS FOUND!\n";
-            return std::unordered_set<const Document*>();
+            return {};
 
         }
-       
-        
+
             auto results = it->second;
            
-            
             while (ss >> currentword)
             {
-                std::unordered_set<const Document*> intersection;
+                std::unordered_map<const Document*,int> intersection;
                 auto it = index.find(currentword);
                 if (it == index.end())
                 {
                 std::cout << "NO RESULTS FOUND!\n";
-                return std::unordered_set<const Document*>();
+                return {};
                 }
                 for (auto const& doc : results)
                 {
-                    if (it->second.find(doc) != it->second.end())
+                    auto found = it->second.find(doc.first);
+                    if (found!= it->second.end())
                     {
-                        intersection.insert(doc);
+                        intersection[doc.first] = doc.second + found->second;
                     }
                     
                 }
                 results = std::move(intersection);
             }
-           
-        
 
         return results;
         
     }
-};
 
+    void printTopWords(int count){
+
+        std::vector<std::pair<std::string,int>> topwords;
+
+        for (const auto& pair : globalWordCounts)
+        {
+            topwords.push_back(pair);
+        }
+        
+        std::sort(topwords.begin(),topwords.end(),[] (const auto& a, const auto& b){
+            return a.second > b.second;
+        });
+        
+        auto limit = std::min(count,static_cast<int>(topwords.size()));
+        for (int i = 0; i < limit; i++)
+        {
+            std::cout << topwords[i].first << " : " << topwords[i].second << '\n';
+        }
+        
+        
+
+
+    }
+};
 
 int main(){
 
     Searchengine uno;
-    uno.loadDirectory("C:\\Users\\hakke\\OneDrive\\Desktop\\cpp test files");
+    std::string directory;
+    std::cout << "PLEASE ENTER THE DIRECTORY: \n";
+    std::getline(std::cin,directory); 
+    uno.loadDirectory(directory);
     uno.buildindex();
+    uno.printTopWords(5);
     std::string query;
     while (true)
     {
@@ -141,15 +166,9 @@ int main(){
         auto result = uno.search(query);
         for (auto const& re : result)
         {
-            std::cout << re->path << '\n';
+            std::cout << re.first->path <<" : " << re.second << '\n';
         }
-        
-      
     }
-    
-    
-   
-
     
 }
 
