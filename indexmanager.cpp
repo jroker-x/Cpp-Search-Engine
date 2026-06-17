@@ -12,6 +12,7 @@
 
 std::string toLower(std::string tolower);
 std::string normalizeWord(std::string normalize);
+bool phraseexist( const std::vector<int>& first,const std::vector<int>& second);
 
 struct Document
 {
@@ -24,33 +25,37 @@ class Searchengine{
 
     private:
         std::vector<Document> documents;  
-        std::unordered_map<std::string,std::unordered_map<const Document*,int>> index;
+        std::unordered_map<std::string,std::unordered_map<const Document*,std::vector<int>>> index;
         std::unordered_map<std::string, int> globalWordCounts;
-
+       
     
     public:
     
     void buildindex(){
-
+        globalWordCounts.clear();
         index.clear();
         for (const auto& doc :documents)
         {
 
             std::stringstream ss(doc.content);
             std::string word;
+            int position = 0;
+          
             while (ss >> word)
             {
+                
                 word = normalizeWord(word);
                 if (!word.empty())
                 {
-                    index[word][&doc]++;
+                    index[word][&doc].push_back(position);
                     globalWordCounts[word]++;
+                    position ++;
                 }
                 
-              
             }
     
         }
+        
         std::cout << "INDEXED WORDS: " << index.size() << '\n';
     }
     void loadDirectory(const std::string& path){
@@ -83,44 +88,62 @@ class Searchengine{
 
     };
 
-    std::unordered_map<const Document*,int> search(const std::string& word) const{
+    std::unordered_set<const Document*> search(const std::string& word) const{
         auto lowercase = toLower(word);
+        std::unordered_set<const Document*> intersection;
         std::stringstream ss(lowercase);
         std::string currentword;
         ss >> currentword;
         auto it = index.find(currentword);
-        
         if (it == index.end())
+            {
+                std::cout << "NO RESULTS FOUND!\n";
+                return {};
+
+            }
+
+        std::unordered_set<const Document*> results;
+
+         for (auto const& res : it->second)
+         {
+            results.insert(res.first);
+         }
+         
+         if (ss.eof())
         {
-            std::cout << "NO RESULTS FOUND!\n";
-            return {};
-
+            return results;
         }
+         
 
-            auto results = it->second;
-           
+        
+            const auto& dos = it->second;
             while (ss >> currentword)
             {
-                std::unordered_map<const Document*,int> intersection;
+               
                 auto it = index.find(currentword);
                 if (it == index.end())
                 {
                 std::cout << "NO RESULTS FOUND!\n";
                 return {};
                 }
-                for (auto const& doc : results)
+                for (auto const& doc : dos)
                 {
                     auto found = it->second.find(doc.first);
                     if (found!= it->second.end())
                     {
-                        intersection[doc.first] = doc.second + found->second;
+                       if (phraseexist(doc.second,found->second))
+                       {
+                        intersection.insert(doc.first);
+                       }
+                       
                     }
                     
                 }
-                results = std::move(intersection);
+                 
             }
-
-        return results;
+            
+            
+        return intersection ;
         
     }
 
@@ -166,11 +189,11 @@ int main(){
         auto result = uno.search(query);
         for (auto const& re : result)
         {
-            std::cout << re.first->path <<" : " << re.second << '\n';
+            std::cout << re->path << '\n';
         }
     }
-    
 }
+    
 
 std::string toLower(std::string tolower) {
          std::transform(tolower.begin(), tolower.end(),tolower.begin(),[](char c){
@@ -191,3 +214,21 @@ std::string normalizeWord(std::string normalize) {
     );   
         return normalize;
     }
+
+bool phraseexist( const std::vector<int>& first,const std::vector<int>& second){
+    
+    for (auto const& pos1 : first)
+    {
+       for (auto const& pos2 : second)
+       {
+        if (pos2 == pos1 + 1)
+        {
+            return true;
+        }
+       }
+       
+        
+    }
+    return false;
+
+}
